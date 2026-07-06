@@ -1,36 +1,57 @@
 using UnityEngine;
 using TMPro;
 
-// An enum is just a named list of options — like a dropdown in Figma.
-// Defining it outside the class means ALL scripts in the project can use CardType freely.
 public enum CardType { Note, Task, Idea }
 
 public class KnowledgeCard : MonoBehaviour
 {
-    [Header("References")]
+    [Header("References (auto-found if empty)")]
     public TextMeshPro textMesh;
     public Renderer cardRenderer;
 
     [Header("Type")]
     public CardType cardType = CardType.Note;
 
-    // Arrays indexed by CardType — typeColors[0] = Note color, [1] = Task, [2] = Idea.
-    // These are the resting colors.
     private static readonly Color[] typeColors = {
-        new Color(0.85f, 0.8f, 0.6f),  // Note  — warm parchment yellow
-        new Color(0.9f,  0.5f, 0.5f),  // Task  — soft terracotta red
-        new Color(0.5f,  0.7f, 0.9f),  // Idea  — calm sky blue
+        new Color(0.85f, 0.8f,  0.6f),
+        new Color(0.9f,  0.5f,  0.5f),
+        new Color(0.5f,  0.7f,  0.9f),
     };
 
-    // Brighter versions of the same hues — used for hover highlight and edit mode.
     private static readonly Color[] highlightColors = {
-        new Color(1f,   0.95f, 0.4f),  // Note highlighted
-        new Color(1f,   0.6f,  0.4f),  // Task highlighted
-        new Color(0.5f, 0.85f, 1f),    // Idea highlighted
+        new Color(1f,    0.95f, 0.4f),
+        new Color(1f,    0.6f,  0.4f),
+        new Color(0.5f,  0.85f, 1f),
     };
 
     private string content = "";
     private bool isEditing = false;
+
+    void Awake()
+    {
+        // Auto-find components on children if slots weren't filled manually.
+        // GetComponentInChildren searches this object AND all its children.
+        if (textMesh == null)
+            textMesh = GetComponentInChildren<TextMeshPro>();
+
+        if (cardRenderer == null)
+        {
+            // Find CardBody specifically — we don't want to grab a renderer
+            // on any other child accidentally.
+            Transform body = transform.Find("CardBody");
+            if (body != null)
+                cardRenderer = body.GetComponent<Renderer>();
+        }
+
+        // Warn loudly in Console if still null after auto-search.
+        if (textMesh == null)
+            Debug.LogWarning("[KnowledgeCard] No TextMeshPro found on "
+                + gameObject.name + " or its children.");
+
+        if (cardRenderer == null)
+            Debug.LogWarning("[KnowledgeCard] No Renderer found on CardBody of "
+                + gameObject.name);
+    }
 
     void Start()
     {
@@ -38,19 +59,17 @@ public class KnowledgeCard : MonoBehaviour
         RefreshDisplay();
     }
 
-    // Called by CardSpawner right after instantiating the prefab.
     public void SetType(CardType type)
     {
         cardType = type;
         ApplyTypeColor();
-        RefreshDisplay(); // update the label immediately
+        RefreshDisplay();
     }
 
     void ApplyTypeColor()
     {
         if (cardRenderer != null)
             cardRenderer.material.color = typeColors[(int)cardType];
-        // (int)cardType converts Note→0, Task→1, Idea→2 so we can use it as an array index.
     }
 
     public void SetHighlight(bool on)
@@ -77,6 +96,17 @@ public class KnowledgeCard : MonoBehaviour
         RefreshDisplay();
     }
 
+    // Called by CardEditUI when the user closes the edit panel.
+    public void SetContent(string s)
+    {
+        content = s;
+        Debug.Log("[KnowledgeCard] SetContent called on "
+            + gameObject.name + " with: \"" + s + "\"");
+        RefreshDisplay();
+    }
+
+    public string GetContent() => content;
+
     public void AppendChar(char c)
     {
         content += c;
@@ -92,16 +122,22 @@ public class KnowledgeCard : MonoBehaviour
 
     void RefreshDisplay()
     {
-        // Show a small type label above the content — like a sticky note header.
-        string typeLabel = "[" + cardType.ToString().ToUpper() + "]";
-        string body = string.IsNullOrEmpty(content) ? "(press E to write)" : content;
-        if (isEditing) body += " |"; // blinking cursor illusion
-        if (textMesh != null)
-            textMesh.text = typeLabel + "\n" + body;
+       
+
+    if (textMesh == null)
+    {
+        Debug.LogWarning("[KnowledgeCard] textMesh is NULL on "
+            + gameObject.name + " — CardText not found.");
+        return;
     }
 
-    // These two are stubs for Day 5's save system — the save script will call them
-    // to read content out and write it back in on load.
-    public string GetContent() => content;
-    public void SetContent(string s) { content = s; RefreshDisplay(); }
+    string typeLabel = "[" + cardType.ToString().ToUpper() + "]";
+    string body = string.IsNullOrEmpty(content)
+        ? "(press E to write)"
+        : content;
+    if (isEditing) body += " |";
+
+    textMesh.text = typeLabel + "\n" + body;
+
+    }
 }

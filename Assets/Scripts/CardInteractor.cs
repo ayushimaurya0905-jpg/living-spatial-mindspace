@@ -5,51 +5,43 @@ public class CardInteractor : MonoBehaviour
     [Header("Interaction Settings")]
     public float interactRange = 3f;
     public KeyCode interactKey = KeyCode.E;
-    public KeyCode grabKey    = KeyCode.G;
+    public KeyCode grabKey     = KeyCode.G;
+    public KeyCode deleteKey   = KeyCode.Delete;
     public Camera playerCamera;
 
     [Header("Grab Settings")]
-    public float holdDistance = 2f; // how far in front card floats while held
+    public float holdDistance = 2f;
+
+    // CardSpawner reads this to block spawning while typing
+    public bool IsEditing => CardEditUI.IsOpen;
 
     private KnowledgeCard lookedAtCard;
-    private KnowledgeCard editingCard;
     private Transform heldCard;
-    private float extraRotationY = 0f; // accumulated spin from R key
+    private float extraRotationY = 0f;
 
     void Update()
     {
-        // Three mutually exclusive modes, checked in priority order.
+        // If the edit panel is open, don't do anything in 3D world
+        // CardEditUI handles all input while IsOpen = true
+        if (CardEditUI.IsOpen) return;
 
-        // MODE 1 — typing into a card
-        if (editingCard != null)
-        {
-            HandleTypingInto(editingCard);
-            return; // skip everything else this frame
-        }
-
-        // MODE 2 — holding/carrying a card
+        // If holding a card, handle that first
         if (heldCard != null)
         {
             UpdateHeldCardPosition();
-
-            // R snaps the card 45° at a time — useful for placing it on walls at an angle.
-            if (Input.GetKeyDown(KeyCode.R))
-                extraRotationY += 45f;
-
-            // G again = release and place it where it currently is.
-            if (Input.GetKeyDown(grabKey))
-                ReleaseCard();
-
-            return; // skip raycasting while holding
+            if (Input.GetKeyDown(KeyCode.R)) extraRotationY += 45f;
+            if (Input.GetKeyDown(grabKey))   ReleaseCard();
+            return;
         }
 
-        // MODE 3 — normal look-and-interact
+        // Normal mode — detect what we're looking at
         DetectLookedAtCard();
 
         if (lookedAtCard != null)
         {
             if (Input.GetKeyDown(interactKey)) StartEditing(lookedAtCard);
             if (Input.GetKeyDown(grabKey))     GrabCard(lookedAtCard);
+            if (Input.GetKeyDown(deleteKey))   DeleteCard(lookedAtCard);
         }
     }
 
@@ -70,38 +62,46 @@ public class CardInteractor : MonoBehaviour
         }
     }
 
+    void StartEditing(KnowledgeCard card)
+    {
+        // Clear the highlight — card goes into edit color via BeginEdit()
+        if (lookedAtCard != null) lookedAtCard.SetHighlight(false);
+        lookedAtCard = null;
+
+        card.BeginEdit();
+
+        // Hand off entirely to CardEditUI
+        CardEditUI.instance.BeginEditing(card);
+
+        Debug.Log("Edit panel opened");
+    }
+
     void GrabCard(KnowledgeCard card)
     {
         card.SetHighlight(false);
         lookedAtCard = null;
         heldCard = card.transform;
-        extraRotationY = 0f; // reset spin each time you pick up
+        extraRotationY = 0f;
 
-        // Disable collider while held — otherwise the card blocks your own raycast
-        // and you can never look past it to see other cards.
         Collider col = heldCard.GetComponentInChildren<Collider>();
         if (col != null) col.enabled = false;
     }
 
     void UpdateHeldCardPosition()
     {
-        // Target position = always holdDistance units straight ahead of camera.
         Vector3 target = playerCamera.transform.position
                        + playerCamera.transform.forward * holdDistance;
 
-        // Lerp (Linear Interpolation) moves the card smoothly toward the target
-        // instead of snapping instantly — the "10f" controls how quickly it catches up.
-        // At Time.deltaTime * 10f it reaches ~95% of the way in about 0.3 seconds.
-        heldCard.position = Vector3.Lerp(heldCard.position, target, Time.deltaTime * 10f);
+        heldCard.position = Vector3.Lerp(
+            heldCard.position, target, Time.deltaTime * 10f);
 
-        // Keep the card facing the player and perfectly upright regardless of camera tilt.
         Vector3 dir = playerCamera.transform.position - heldCard.position;
         dir.y = 0;
         if (dir.sqrMagnitude > 0.001f)
         {
             Quaternion baseRot = Quaternion.LookRotation(dir);
-            heldCard.rotation = Quaternion.Euler(0,
-                baseRot.eulerAngles.y + extraRotationY, 0);
+            heldCard.rotation = Quaternion.Euler(
+                0, baseRot.eulerAngles.y + extraRotationY, 0);
         }
     }
 
@@ -110,33 +110,14 @@ public class CardInteractor : MonoBehaviour
         Collider col = heldCard.GetComponentInChildren<Collider>();
         if (col != null) col.enabled = true;
         heldCard = null;
+        WorldSaveManager.instance.SaveWorld();
     }
 
-    void StartEditing(KnowledgeCard card)
+    void DeleteCard(KnowledgeCard card)
     {
-        editingCard = card;
-        card.SetHighlight(false);
-        card.BeginEdit();
-        Cursor.lockState = CursorLockMode.None;
-        Cursor.visible = true;
-    }
-
-    void HandleTypingInto(KnowledgeCard card)
-    {
-        foreach (char c in Input.inputString)
-        {
-            if (c == '\b')             card.Backspace();
-            else if (c == '\n' || c == '\r') { FinishEditing(); return; }
-            else                       card.AppendChar(c);
-        }
-        if (Input.GetKeyDown(KeyCode.Escape)) FinishEditing();
-    }
-
-    void FinishEditing()
-    {
-        editingCard.EndEdit();
-        editingCard = null;
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
+        lookedAtCard = null;
+        Destroy(card.gameObject);
+        WorldSaveManager.instance.SaveWorld();
+        Debug.Log("Card deleted");
     }
 }
