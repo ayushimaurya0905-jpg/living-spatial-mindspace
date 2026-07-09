@@ -12,7 +12,6 @@ public class CardInteractor : MonoBehaviour
     [Header("Grab Settings")]
     public float holdDistance = 2f;
 
-    // CardSpawner reads this to block spawning while typing
     public bool IsEditing => CardEditUI.IsOpen;
 
     private KnowledgeCard lookedAtCard;
@@ -21,11 +20,8 @@ public class CardInteractor : MonoBehaviour
 
     void Update()
     {
-        // If the edit panel is open, don't do anything in 3D world
-        // CardEditUI handles all input while IsOpen = true
         if (CardEditUI.IsOpen) return;
 
-        // If holding a card, handle that first
         if (heldCard != null)
         {
             UpdateHeldCardPosition();
@@ -34,7 +30,6 @@ public class CardInteractor : MonoBehaviour
             return;
         }
 
-        // Normal mode — detect what we're looking at
         DetectLookedAtCard();
 
         if (lookedAtCard != null)
@@ -64,15 +59,10 @@ public class CardInteractor : MonoBehaviour
 
     void StartEditing(KnowledgeCard card)
     {
-        // Clear the highlight — card goes into edit color via BeginEdit()
         if (lookedAtCard != null) lookedAtCard.SetHighlight(false);
         lookedAtCard = null;
-
         card.BeginEdit();
-
-        // Hand off entirely to CardEditUI
         CardEditUI.instance.BeginEditing(card);
-
         Debug.Log("Edit panel opened");
     }
 
@@ -116,8 +106,18 @@ public class CardInteractor : MonoBehaviour
     void DeleteCard(KnowledgeCard card)
     {
         lookedAtCard = null;
-        Destroy(card.gameObject);
+
+        // Deactivate BEFORE saving — FindObjectsByType skips
+        // inactive objects, so this card won't be written to
+        // the save file even though Destroy() hasn't run yet
+        card.gameObject.SetActive(false);
+
+        // Save now — deactivated card is excluded
         WorldSaveManager.instance.SaveWorld();
-        Debug.Log("Card deleted");
+
+        // Actually destroy after saving
+        Destroy(card.gameObject);
+
+        Debug.Log("Card deleted and save updated.");
     }
 }

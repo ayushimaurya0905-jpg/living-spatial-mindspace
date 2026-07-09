@@ -55,51 +55,76 @@ public class CardEditUI : MonoBehaviour
     // This completely bypasses TMP_InputField and EventSystem focus.
     void OnGUI()
     {
-        if (!IsOpen) return;
+       if (!IsOpen) return;
 
-        Event e = Event.current;
+    Event e = Event.current;
+    if (e.type != EventType.KeyDown) return;
 
-        // We only care about key-down events — ignore mouse, repaint, etc.
-        if (e.type != EventType.KeyDown) return;
-
-        // Escape = save and close
-        if (e.keyCode == KeyCode.Escape)
-        {
-            EndEditing();
-            e.Use(); // consume the event so nothing else sees it
-            return;
-        }
-
-        // Backspace = delete last character
-        if (e.keyCode == KeyCode.Backspace)
-        {
-            if (typedText.Length > 0)
-                typedText = typedText.Substring(0, typedText.Length - 1);
-            e.Use();
-            UpdateDisplay();
-            return;
-        }
-
-        // Enter = newline (allows multi-line notes)
-        if (e.keyCode == KeyCode.Return || e.keyCode == KeyCode.KeypadEnter)
-        {
-            typedText += "\n";
-            e.Use();
-            UpdateDisplay();
-            return;
-        }
-
-        // Any printable character — e.character handles your keyboard
-        // layout, Shift state, and language automatically.
-        // char.IsControl filters out arrow keys, function keys, etc.
-        if (e.character != '\0' && !char.IsControl(e.character))
-        {
-            typedText += e.character;
-            e.Use();
-            UpdateDisplay();
-        }
+    // Escape = save and close
+    if (e.keyCode == KeyCode.Escape)
+    {
+        EndEditing();
+        e.Use();
+        return;
     }
 
+    // Backspace = delete last character
+    if (e.keyCode == KeyCode.Backspace)
+    {
+        if (typedText.Length > 0)
+            typedText = typedText.Substring(0, typedText.Length - 1);
+        e.Use();
+        UpdateDisplay();
+        return;
+    }
+
+    // ── NEW: Ctrl+V = paste from clipboard ───────────────────
+    // e.control works on Windows, e.command works on Mac
+    if (e.keyCode == KeyCode.V && (e.control || e.command))
+    {
+        string clipboard = GUIUtility.systemCopyBuffer;
+        if (!string.IsNullOrEmpty(clipboard))
+        {
+            // Strip any weird control characters from pasted text
+            // before adding — avoids invisible chars breaking display
+            foreach (char c in clipboard)
+            {
+                if (!char.IsControl(c) || c == '\n')
+                    typedText += c;
+            }
+            Debug.Log("[CardEditUI] Pasted: \"" + clipboard + "\"");
+        }
+        e.Use();
+        UpdateDisplay();
+        return;
+    }
+
+    // ── NEW: Ctrl+A = select all (clears text for retyping) ──
+    if (e.keyCode == KeyCode.A && (e.control || e.command))
+    {
+        typedText = "";
+        e.Use();
+        UpdateDisplay();
+        return;
+    }
+
+    // Enter = newline
+    if (e.keyCode == KeyCode.Return || e.keyCode == KeyCode.KeypadEnter)
+    {
+        typedText += "\n";
+        e.Use();
+        UpdateDisplay();
+        return;
+    }
+
+    // Any printable character
+    if (e.character != '\0' && !char.IsControl(e.character))
+    {
+        typedText += e.character;
+        e.Use();
+        UpdateDisplay();
+    }
+    }
     void UpdateDisplay()
     {
         if (typedTextLabel == null) return;

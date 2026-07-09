@@ -24,20 +24,25 @@ public class CuratorOrb : MonoBehaviour
 
     void Start()
     {
-        orbRenderer   = GetComponent<Renderer>();
-        randomOffset  = Random.Range(0f, Mathf.PI * 2f);
+        orbRenderer  = GetComponent<Renderer>();
+    randomOffset = Random.Range(0f, Mathf.PI * 2f);
 
-        // Find the player by tag — make sure Player GameObject
-        // has the "Player" tag set in the Inspector
-        GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
-        if (playerObj != null)
-            playerTransform = playerObj.transform;
-        else
-            Debug.LogWarning("[CuratorOrb] Player tag not found. " +
-                "Select Player in Hierarchy → Tag → Player.");
+    GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
+    if (playerObj != null)
+        playerTransform = playerObj.transform;
+    else
+        Debug.LogWarning("[CuratorOrb] Player tag not found. " +
+            "Select Player → Tag → Player in Inspector.");
 
-        // Pick a first waypoint immediately
-        currentWaypoint = PickNewWaypoint();
+    // Pick first waypoint
+    currentWaypoint = PickNewWaypoint();
+
+    // TELEPORT immediately instead of drifting from center —
+    // without this the orb spawns at (0,2,0) which is directly
+    // in the player's face for the first few seconds
+    transform.position = currentWaypoint;
+
+    Debug.Log("[CuratorOrb] Spawned at waypoint: " + currentWaypoint);
     }
 
     void Update()
