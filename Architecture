@@ -1,0 +1,53 @@
+# Architecture — Living Spatial Mindspace
+
+## Scene Structure
+Two scenes managed by Unity's SceneManager:
+- **MainMenu** (index 0): UI-only scene, loads on startup
+- **SampleScene** (index 1): the 3D world
+
+## Core Scripts
+
+### Player system
+- `FirstPersonController.cs` — WASD movement, mouse-look via 
+  CharacterController. Freezes when edit panel is open. 
+  Escape returns to main menu with cursor unlock.
+
+### Knowledge card system
+- `KnowledgeCard.cs` — owns a card's type, content, and visual 
+  state. Exposes GetContent/SetContent for save and AI systems.
+- `CardInteractor.cs` — fires a ViewportPointToRay raycast each 
+  frame, detects which card the player looks at, handles E (edit), 
+  G (grab/move), Delete. Deactivates before destroying to prevent 
+  save-race condition.
+- `CardSpawner.cs` — spawns typed card prefabs on N/T/I keypresses, 
+  blocked while edit panel is open.
+- `CardEditUI.cs` — Canvas overlay with OnGUI() text capture. 
+  Bypasses Unity's EventSystem entirely for reliable input.
+
+### Persistence
+- `WorldSaveManager.cs` — singleton. Serializes all KnowledgeCard 
+  positions, rotations, types and content to JSON via 
+  JsonUtility. Saves on every card change. Loads on Start().
+  Path: Application.persistentDataPath/worldsave.json
+
+### AI Curator system
+- `AICurator.cs` — singleton. Runs ScanAllCards() on a 30-second 
+  InvokeRepeating loop and after every save. For each card pair, 
+  computes word-overlap similarity (Jaccard-style containment) 
+  after stop-word removal and tokenisation. Pairs above 0.2 
+  threshold form a CardConnection.
+- `CuratorOrb.cs` — waypoint-based wandering near room perimeter 
+  at ceiling height. Actively avoids player position. Flashes 
+  emission on new connection discovery.
+- `ConnectionRenderer.cs` — reads AICurator.connections list and 
+  instantiates LineRenderer objects between related card pairs. 
+  Line width and alpha encode connection strength. Pulses opacity 
+  each frame for living quality.
+- `CuratorLightController.cs` — point light that idles with gentle 
+  sine pulse and spikes intensity when curator finds new connections.
+
+### Main menu
+- `MainMenuController.cs` — checks for save file existence to show 
+  Enter vs Continue. Wires button listeners. Unlocks cursor on load.
+
+## Data flow
